@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import Optional
 
 from core.models import Event, EventMode
@@ -65,3 +66,27 @@ def mark_expired_as_fired(events: list[Event], now: Optional[float] = None) -> b
 def due_message(event: Event) -> str:
     """到点通知的正文文案（集中在这里，便于统一改动与测试）。"""
     return f"{event.name} 已到点"
+
+
+def snooze(event: Event, minutes: int, now: Optional[float] = None) -> Optional[Event]:
+    """把倒计时事件改为「从现在起 minutes 分钟后再次提醒」。
+
+    返回**新的** Event（绝不原地改动传入对象）：
+      - anchor_ts 前移到 now + minutes*60
+      - fired_at 清空为 None —— 否则 collect_due_events 以 fired_at is None
+        为判据，清不掉就永远不会再提醒
+      - 其余字段原样保留
+
+    仅对 COUNTDOWN 生效；非倒计时返回 None（调用方应忽略）。
+    这里**不校验是否已到点**：是否“已到点”由界面把关（按钮只对已到点启用），
+    纯函数只需保证「模式正确即可前移」。正计时的 anchor_ts 是起跑点，
+    前移它会破坏语义，因此必须拒绝。
+
+    :param event: 倒计时事件
+    :param minutes: 稍后提醒的分钟数（正数）
+    :param now: 当前时间戳（秒），默认取 time.time()，测试时可注入
+    """
+    if event.mode != EventMode.COUNTDOWN:
+        return None
+    current = time.time() if now is None else now
+    return replace(event, anchor_ts=current + minutes * 60, fired_at=None)

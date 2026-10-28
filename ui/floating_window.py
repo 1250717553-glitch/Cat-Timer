@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import (
     QFontMetrics,
     QGuiApplication,
@@ -30,8 +30,9 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QGridLayout, QLabel, QMenu, QWidget
 
-from core.models import Event
+from core.models import Event, EventMode
 from core.storage import get_config_path
+from core.timer import is_expired
 from ui import theme
 from ui.context_menu import build_floating_menu
 from ui.text_format import EXPIRED_TEXT, event_time_text
@@ -48,7 +49,6 @@ class FloatingWindow(QWidget):
 
     # 位置文件放在 config.json 同一个目录下
     POSITION_FILENAME = "floating_window.json"
-    REFRESH_INTERVAL_MS = 1000
     # 默认位置：主屏右下角，留 40px 边距
     SCREEN_MARGIN = 40
 
@@ -66,10 +66,11 @@ class FloatingWindow(QWidget):
         self.rebuild()          # 先建行，尺寸确定后才能算默认位置
         self.restore_position()  # 位置记忆（含多屏失效校验）
 
-        # 每秒刷新一次文本
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self.refresh_texts)
-        self._timer.start(self.REFRESH_INTERVAL_MS)
+        # 每秒刷新由主窗口的**常驻**提醒定时器（time_changed）驱动，
+        # 不再自建 QTimer —— 否则同一秒被两个定时器各刷一遍、且相位不同。
+        # 关键：time_changed 由 check_notifications 发出（与窗口可见性无关），
+        # 所以主窗口 hide() 后悬浮窗照样每秒更新。
+        self._main_window.time_changed.connect(self._on_time_changed)
 
     # ------------------------------------------------------------------
     # 初始化
@@ -111,6 +112,24 @@ class FloatingWindow(QWidget):
         """悬浮窗要显示的事件：启用 且 显示在桌面。"""
         return [e for e in self._main_window.events if e.enabled and e.show_on_desktop]
 
+    def first_snoozable_index(self) -> int:
+        """返回第一个「已到点、启用、显示在桌面」的倒计时在主窗口 events 里的下标。
+
+        悬浮窗没有「选中」概念，稍后提醒就作用于这个事件（首个到点的可见倒计时）。
+        返回 -1 时，菜单对应项应置灰。
+
+        :return: events 列表下标；找不到返回 -1
+        """
+        for index, event in enumerate(self._main_window.events):
+            if (
+                event.enabled
+                and event.show_on_desktop
+                and event.mode == EventMode.COUNTDOWN
+                and is_expired(event)
+            ):
+                return index
+        return -1
+
     def rebuild(self) -> None:
         """重建行控件（事件增删改后调用），并自适应尺寸。"""
         self._clear_rows()
@@ -137,9 +156,12 @@ class FloatingWindow(QWidget):
         self.adjustSize()
         self._keep_on_screen()
 
-    def refresh_texts(self) -> None:
-        """每秒调用：只改文本，文本无变化则跳过。"""
-        now = time.time()
+    def refresh_texts(self, now: Optional[float] = None) -> None:
+        """刷新全部可见事件文本；文本无变化则跳过（可重复调用）。
+
+        now 由主窗口的心跳信号注入；为兼容 rebuild 里无参调用保留默认值。
+        """
+        now = now if now is not None else time.time()
         changed = False
 
         for _name_label, time_label, event in self._rows:
@@ -161,6 +183,10 @@ class FloatingWindow(QWidget):
         if changed and self.sizeHint() != self.size():
             self.adjustSize()
             self._keep_on_screen()
+
+    def _on_time_changed(self, now: float) -> None:
+        """主窗口心跳信号的槽：立即刷新文本（隐藏时同样收到，保持更新）。"""
+        self.refresh_texts(now)
 
     # ------------------------------------------------------------------
     # 绘制
@@ -352,16 +378,13 @@ class FloatingWindow(QWidget):
         else:
             self.show()
 
-    def hideEvent(self, event) -> None:  # noqa: N802
-        """隐藏时停掉刷新定时器省 CPU。"""
-        self._timer.stop()
-        super().hideEvent(event)
-
     def showEvent(self, event) -> None:  # noqa: N802
-        """显示时恢复定时器并立刻刷一次。"""
+        """"显示时立刻刷一次；随后每秒更新由主窗口心跳信号驱动。
+
+        不再有自建定时器，因此不需要 hideEvent/save CPU 的逻辑 ——
+        悬浮窗本身不产生定时器开销，隐藏与否都不消耗 CPU 轮询。
+        """
         super().showEvent(event)
-        if not self._timer.isActive():
-            self._timer.start(self.REFRESH_INTERVAL_MS)
         self.refresh_texts()
 
     # 注意：这里**刻意不重写 closeEvent**。

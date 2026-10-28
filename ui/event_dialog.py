@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from PySide6.QtCore import QDate, QTime
+from PySide6.QtCore import QDate, QDateTime, QTime
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -17,8 +17,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QTimeEdit,
     QVBoxLayout,
     QWidget,
@@ -111,6 +113,16 @@ class EventDialog(QDialog):
         self.time_edit.setDisplayFormat("HH:mm:ss")
         self.time_edit.setTime(QTime(0, 0, 0))
 
+        # 一键预设：从现在起 N 分钟后到点。把日期+时间一起设成 now+N，
+        # 并把模式切到倒计时 —— 常见用法是「5 分钟后提醒我」，省去手填日期时间。
+        self.preset_row = QHBoxLayout()
+        for minutes in (5, 15, 25, 30, 60):
+            button = QPushButton(f"{minutes} 分钟")
+            button.clicked.connect(lambda _=False, m=minutes: self.apply_preset(m))
+            self.preset_row.addWidget(button)
+        self.preset_widget = QWidget()
+        self.preset_widget.setLayout(self.preset_row)
+
         # 显示格式
         self.format_combo = QComboBox()
         for text, value in _FORMAT_OPTIONS:
@@ -130,6 +142,7 @@ class EventDialog(QDialog):
         form.addRow("模式", self.mode_combo)
         form.addRow("日期", self.date_edit)
         form.addRow("时间", self.time_edit)
+        form.addRow("从现在起", self.preset_widget)
         form.addRow("显示格式", self.format_combo)
         form.addRow("", self.enabled_check)
         form.addRow("", self.show_on_desktop_check)
@@ -155,6 +168,17 @@ class EventDialog(QDialog):
         """新增模式的默认值：日期今天、时间 00:00:00。"""
         self.date_edit.setDate(QDate.currentDate())
         self.time_edit.setTime(QTime(0, 0, 0))
+
+    def apply_preset(self, minutes: int) -> None:
+        """把日期+时间设为「从现在起 minutes 分钟后」，模式切到倒计时。
+
+        不校验 minutes 是否可解析为 QDateTime —— 只用整数分钟做加法，
+        跨日 / 跨月由 QDateTime 自动进位，远期日期也照常可用。
+        """
+        target = QDateTime.currentDateTime().addSecs(minutes * 60)
+        self.date_edit.setDate(target.date())
+        self.time_edit.setTime(target.time())
+        self._select_by_data(self.mode_combo, EventMode.COUNTDOWN.value)
 
     def _load_from_event(self, event: Event) -> None:
         """编辑模式：把事件已有值回填到表单。"""

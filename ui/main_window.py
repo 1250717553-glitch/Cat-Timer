@@ -34,8 +34,9 @@ from PySide6.QtWidgets import (
 )
 
 from core.models import Event, EventMode
-from core.notifier import collect_due_events, due_message
+from core.notifier import collect_due_events, due_message, snooze
 from core.storage import get_config_path, load_events, save_events
+from core.timer import is_expired
 from platform_win import single_instance
 from ui.event_dialog import EventDialog
 from ui.text_format import event_time_text_with_prefix
@@ -50,6 +51,10 @@ class MainWindow(QMainWindow):
 
     # 事件数据变更信号：新增 / 编辑 / 删除后发出，main.py 接到悬浮窗的 rebuild 上
     events_changed = Signal()
+
+    # 每秒心跳信号：由**常驻**的提醒定时器（check_notifications）发出。
+    # 悬浮窗据此刷新，不依赖主窗口是否可见 —— 否则主窗口收到托盘后悬浮窗会停摆。
+    time_changed = Signal(float)
 
     # 列索引常量
     COL_NAME = 0
@@ -138,13 +143,16 @@ class MainWindow(QMainWindow):
         self.add_button = QPushButton("新增")
         self.edit_button = QPushButton("编辑")
         self.delete_button = QPushButton("删除")
+        self.snooze_button = QPushButton("稍后提醒")
         self.add_button.clicked.connect(self._add_event)
         self.edit_button.clicked.connect(self._edit_event)
         self.delete_button.clicked.connect(self._delete_event)
+        self.snooze_button.clicked.connect(self._snooze_event)
 
         button_row.addWidget(self.add_button)
         button_row.addWidget(self.edit_button)
         button_row.addWidget(self.delete_button)
+        button_row.addWidget(self.snooze_button)
         button_row.addStretch(1)
         layout.addLayout(button_row)
 
@@ -221,10 +229,26 @@ class MainWindow(QMainWindow):
         return rows[0].row()
 
     def _update_button_state(self) -> None:
-        """没有选中行时，禁用「编辑」「删除」。"""
-        has_selection = self._selected_row() >= 0
+        """没有选中行时，禁用「编辑」「删除」。
+        
+        稍后提醒：仅当选中行是「已到点的倒计时」才可用，否则置灰。
+        """
+        row = self._selected_row()
+        has_selection = row >= 0
         self.edit_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
+        self.snooze_button.setEnabled(self._is_snoozable(row))
+
+    def _is_snoozable(self, row: int) -> bool:
+        """该行事件是否可「稍后提醒」：倒计时 且 已到点。
+
+        判断不依赖 fired_at：到点后无论是否已提醒过（fired_at 已记录），
+        都应允许稍后提醒 —— 这正是「到点后把它往后推 5/15 分钟」的入口。
+        """
+        if row < 0 or row >= len(self.events):
+            return False
+        event = self.events[row]
+        return event.mode == EventMode.COUNTDOWN and is_expired(event)
 
     def _add_event(self) -> None:
         """新增事件。"""
@@ -267,6 +291,53 @@ class MainWindow(QMainWindow):
         del self.events[row]
         self._after_data_changed(select_row=min(row, len(self.events) - 1))
 
+    def _snooze_event(self) -> None:
+        """把当前选中的已到点倒计时「稍后提醒」5 或 15 分钟。
+
+        用 QMessageBox 弹二选一（托盘气泡不支持按钮，只能靠主窗口交互）。
+        snooze 是纯函数、返回新 Event；拿到后原地替换选中行并落盘。
+        """
+        row = self._selected_row()
+        if not self._is_snoozable(row):
+            return
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("稍后提醒")
+        box.setText(f"「{self.events[row].name}」已到点，稍后多久再提醒？")
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        yes = box.button(QMessageBox.StandardButton.Yes)
+        yes.setText("5 分钟")
+        yes.setDefault(True)
+        no = box.button(QMessageBox.StandardButton.No)
+        no.setText("15 分钟")
+        # 用户直接关掉对话框 = 取消（No 也当取消处理？）
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked == yes:
+            minutes = 5
+        elif clicked == no:
+            minutes = 15
+        else:
+            return  # 关掉对话框 / 按 Esc -> 取消
+
+        self.snooze_event_at(row, minutes)
+
+    def snooze_event_at(self, row: int, minutes: int) -> bool:
+        """把指定行的倒计时「稍后提醒」minutes 分钟（供悬浮窗菜单复用）。
+
+        悬浮窗没有选中概念，也要能对「第一个到点且显示在桌面」的事件做稍后提醒，
+        所以把「定位后原地替换 + 落盘 + 刷新」这一步抽成公共方法。
+        """
+        if not self._is_snoozable(row):
+            return False
+        new_event = snooze(self.events[row], minutes)
+        if new_event is None:  # 理论不会发生（_is_snoozable 已把关），防御性返回
+            return False
+        self.events[row] = new_event
+        self._after_data_changed(select_row=row)
+        return True
+
     def _after_data_changed(self, select_row: int = -1) -> None:
         """数据变更后的统一收尾：重建表格 + 立即落盘 + 通知悬浮窗 + 恢复选中行。"""
         self._populate_table()
@@ -294,6 +365,10 @@ class MainWindow(QMainWindow):
         由 _notify_timer 每秒调用，**窗口隐藏时依然运行**。
         """
         now = time.time()
+        # 常驻心跳：无论是否有到点事件，每秒都广播一次给悬浮窗。
+        # 悬浮窗不再自带定时器，靠这个信号驱动刷新，主窗口隐藏也能继续。
+        self.time_changed.emit(now)
+
         due = collect_due_events(self.events, now)
         if not due:
             return

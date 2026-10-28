@@ -31,15 +31,40 @@ def _add_action(menu: QMenu, text: str, slot: Callable[[], None]) -> QAction:
     return action
 
 
+def _add_snooze_action(
+    menu: QMenu,
+    text: str,
+    minutes: int,
+    floating_window: "FloatingWindow",
+    main_window: "MainWindow",
+) -> QAction:
+    """加一个「稍后提醒 N 分钟」菜单项。
+
+    悬浮窗没有选中概念，作用于第一个到点且显示在桌面的倒计时：
+    floating_window.first_snoozable_index() 找不到时置灰。
+    """
+    index = floating_window.first_snoozable_index()
+    action = QAction(text, menu)
+    # 找到可提醒事件才可用，否则置灰 —— 但置灰项不该可点击，
+    # 因此 slot 里也再校验一次，双保险。
+    action.setEnabled(index >= 0)
+    action.triggered.connect(lambda: main_window.snooze_event_at(index, minutes))
+    menu.addAction(action)
+    return action
+
+
 def build_floating_menu(
     parent_window: QWidget,
     floating_window: "FloatingWindow",
     main_window: "MainWindow",
 ) -> QMenu:
-    """悬浮窗的右键菜单：新增倒计时 / 管理倒计时 / 隐藏悬浮窗 / 退出。"""
+    """悬浮窗的右键菜单：新增 / 管理 / 稍后提醒 / 隐藏 / 退出。"""
     menu = QMenu(parent_window)
     _add_action(menu, "新增倒计时", main_window.add_event)
     _add_action(menu, "管理倒计时", main_window.show_and_activate)
+    menu.addSeparator()
+    _add_snooze_action(menu, "稍后提醒 5 分钟", 5, floating_window, main_window)
+    _add_snooze_action(menu, "稍后提醒 15 分钟", 15, floating_window, main_window)
     menu.addSeparator()
     _add_action(menu, "隐藏悬浮窗", floating_window.hide)
     menu.addSeparator()

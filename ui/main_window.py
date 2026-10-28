@@ -311,7 +311,8 @@ class MainWindow(QMainWindow):
         yes.setDefault(True)
         no = box.button(QMessageBox.StandardButton.No)
         no.setText("15 分钟")
-        # 用户直接关掉对话框 = 取消（No 也当取消处理？）
+        # 用户直接关掉对话框 / 按 Esc = 取消
+        # （QMessageBox 的 escapeButton() 实测为 None，Esc 不会误触发 No）
         box.exec()
         clicked = box.clickedButton()
         if clicked == yes:

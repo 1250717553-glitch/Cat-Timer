@@ -1,0 +1,21 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# --- 虚拟环境（重建：python -m venv .venv 后按 requirements.txt 安装）---
+.venv/
+
+# --- 构建产物：可复现，不入库 ---
+build/
+dist/
+
+# --- 参考项目：仅作设计蓝本，体积 25MB，不入库 ---
+BongoCat-master/
+Easy-Cat-Timer-master/
+
+# --- 本机 AI 工作记录 ---
+.workbuddy-ai/
+
+# --- 运行时生成 ---
+*.log

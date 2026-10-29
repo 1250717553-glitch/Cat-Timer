@@ -24,9 +24,30 @@ APP_NAME = "桌面宠物计时器"
 # ---------------------------------------------------------------------------
 datas = []
 assets_dir = PROJECT_ROOT / "assets"
+
+# 【显式列出，不用整目录复制】
+# 原写法 datas.append((str(assets_dir), "assets")) 会把 assets/ 下的所有东西
+# 都打进包 —— 包括 13MB 的源素材（图标源图、白底原图、抠图预览）。
+# .gitignore 对 PyInstaller 无效（它不看那个文件），所以必须在这里点名。
+#
+# 为什么用「白名单」而不是「排除法」：
+#     assets/ 以后再加调试图/中间产物时，排除法会静默漏进去；
+#     白名单只会漏掉「你明确想加却没加」的文件，而那种情况会在启动时
+#     表现为图标缺失/占位猫，立刻能被发现 —— 失败方式更容易察觉。
+_PACKAGED_ASSETS: tuple[tuple[str, str], ...] = (
+    ("app.ico", "assets"),              # 托盘 / 任务栏图标
+    ("tray.ico", "assets"),             # 图标兜底
+    ("pet/body.png", "assets/pet"),     # 宠物本体（运行时唯一需要的猫图）
+)
+
 if assets_dir.is_dir():
-    datas.append((str(assets_dir), "assets"))
-    print(f"[build.spec] 已包含资源目录：{assets_dir}")
+    for relative, target_dir in _PACKAGED_ASSETS:
+        source = assets_dir / relative
+        if source.is_file():
+            datas.append((str(source), target_dir))
+            print(f"[build.spec] 打包资源：{relative} -> {target_dir}/")
+        else:
+            print(f"[build.spec] 警告：缺少资源 {source}（程序会回落到占位绘制）")
 else:
     print(f"[build.spec] 提示：未找到 {assets_dir}，跳过。")
     print("[build.spec]       托盘图标将退回系统标准图标（程序仍可正常运行）。")

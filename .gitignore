@@ -30,7 +30,10 @@ assets/source/
 assets/pet/source/
 
 # --- 临时截图/验证产物 ---
+# .tmp_check/ 是我临时验证截图用过的目录，和 docs/screenshots/ 内容重复，
+# 不该进版本库（已清理，这里留条规则防止再被误加）。
 .tmp_shots/
+.tmp_check/
 _shots/
 
 # --- Windows 保留设备名：ISCC 误操作重定向产生，git 无法索引 ---

@@ -14,7 +14,15 @@ from typing import Optional
 from PySide6.QtCore import QSharedMemory
 
 # 共享内存段的键名（全局唯一，避免与其他程序冲突）
-DEFAULT_KEY = "desktop-pet-timer-single-instance-v1"
+# v1 改成 v2：v1 那段的 key 已经被一次异常退出留下的残留段占死
+# （实测该段 size=4096，而本模块 create 的是 1 字节），
+# 导致所有升级到这一版的用户都会「程序打不开」。
+# 换 key 是最直接的止损：旧残留在系统里自生自灭，不影响新版本。
+DEFAULT_KEY = "desktop-pet-timer-single-instance-v2"
+
+# 段大小。只用来表达「存在性」，1 字节就够；
+# 但取 4096 是与页面对齐的常见值，避免个别平台上小于页面的段行为异常。
+SEGMENT_SIZE = 1
 
 
 class SingleInstance:
@@ -39,19 +47,31 @@ class SingleInstance:
 
         shared = QSharedMemory(self._key)
 
-        # 先尝试 attach：能挂上说明别的进程已经创建了这段共享内存
-        # （Windows 上进程退出会自动回收，所以 attach 成功即代表有活着的实例）
-        if shared.attach():
-            shared.detach()
-            return False
+        # 先直接 create：这是最可靠的判据 —— 只有真的没人持有才能成功。
+        if shared.create(SEGMENT_SIZE):
+            self._shared = shared
+            self._locked = True
+            return True
 
-        if not shared.create(1):  # 1 字节足够，我们只用它的存在性
-            print(f"[single_instance] 创建共享内存失败 -> {shared.errorString()}")
-            return False
+        # create 失败可能有两种原因：真的已有实例在跑，或只是残留段。
+        # 用 attach/detach 清掉一次引用计数再重试：
+        # 残留段被清后会释放，重试就能成功；真实例仍在跑时它握着段，重试仍失败。
+        stale = QSharedMemory(self._key)
+        if stale.attach():
+            stale.detach()
+        retry = QSharedMemory(self._key)
+        if retry.create(SEGMENT_SIZE):
+            self._shared = retry
+            self._locked = True
+            return True
 
-        self._shared = shared  # 必须持有引用，否则锁会被释放
-        self._locked = True
-        return True
+        # 到这一步说明确实有另一个实例在运行。
+        # 但如果连 errorString 都是「已存在」之外的错误，宁可放行也不要把用户锁在门外。
+        err = retry.errorString()
+        if "already exists" not in err.lower() and "已存在" not in err:
+            print(f"[single_instance] 创建共享内存失败（放行）-> {err}")
+            return True
+        return False
 
     def release(self) -> None:
         """释放锁（退出程序前调用）。"""

@@ -12,7 +12,12 @@
     的清理动作，每个文件约 1.4 秒。计时逻辑本身是纯计算，耗时约 0 秒。
 """
 
+
 from __future__ import annotations
+
+import os as _os, tempfile as _tempfile  # 强制隔离：必须早于任何 core 模块 import
+if "dpt_test_" not in _os.environ.get("APPDATA", ""):
+    _os.environ["APPDATA"] = _tempfile.mkdtemp(prefix="dpt_test_")
 
 import json
 import os

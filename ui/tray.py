@@ -13,10 +13,12 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QStyle, QSystemTrayIcon, QWidget
 
 from core.paths import first_existing
+from core.preferences import VISIBILITY_MODES
 from platform_win import autostart
 from ui.context_menu import (
     AUTOSTART_ACTION_NAME,
     FLOATING_ACTION_NAME,
+    VISIBILITY_ACTION_PREFIX,
     build_tray_menu,
 )
 
@@ -29,7 +31,15 @@ APP_NAME = "桌面宠物计时器"
 # 自定义图标候选路径（相对资源基准目录）。有就用，没有就退回系统标准图标。
 # 注意：必须走 core.paths，打包后资源在 sys._MEIPASS 下，
 # 用 __file__ 推路径在打包后会失效。
-_ICON_CANDIDATES = ("assets/tray.ico", "assets/tray.png", "assets/icon.png")
+# 正式图标 app.ico 排在最前：它由 tools/make_app_icon.py 从 "App .png" 生成，
+# 与宠物形象同源（奶油色圆角底座 + 橘猫大头）。后面的旧文件只是兜底，
+# 保证素材被误删时托盘仍有个图标可显示。
+_ICON_CANDIDATES = (
+    "assets/app.ico",
+    "assets/app.png",
+    "assets/tray.ico",
+    "assets/tray.png",
+)
 
 
 def load_app_icon() -> QIcon:
@@ -109,6 +119,13 @@ class TrayIcon(QSystemTrayIcon):
         if floating is not None:
             self._sync_check(
                 self.tray_menu.findChild(QAction, FLOATING_ACTION_NAME), floating.isVisible()
+            )
+        # 显示范围 -> 三个互斥项按当前档位重新勾选
+        current_mode = self._main_window.visibility_mode()
+        for mode in VISIBILITY_MODES:
+            self._sync_check(
+                self.tray_menu.findChild(QAction, VISIBILITY_ACTION_PREFIX + mode),
+                mode == current_mode,
             )
 
     @staticmethod

@@ -34,12 +34,16 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-; {autopf} = Program Files（配合下面的 x64compatible 模式）
-DefaultDirName={autopf}\{#MyAppName}
+; 装到当前用户目录（%LocalAppData%\Programs\...），不碰 Program Files。
+; 这里写死而不用 {autopf}：{autopf} 在 lowest 模式下会自动映射成 {localappdata}\Programs，
+; 但那只是「隐式」约定 —— 一旦有人把 PrivilegesRequired 改回 admin，安装位置会
+; 静默跳到 Program Files，而用户以为没变。写死之后路径与权限模式解耦。
+DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-; 装到 Program Files 需要管理员权限（UAC 提示属正常现象）
-PrivilegesRequired=admin
+; 装到当前用户目录，无需管理员权限（不弹 UAC，受限账户也能装）。
+; 注意：这也意味着不能写 HKLM 注册表、不能装到 Program Files、不能注册系统级服务。
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 ; 输出到 dist\Setup.exe
 OutputDir=dist
@@ -51,8 +55,8 @@ WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName={#MyAppName}
-; 有图标时取消下一行注释（需要 assets\app.ico 存在）
-; SetupIconFile=assets\app.ico
+; 安装器/卸载器自身的图标，与托盘图标共用同一份资源（含 16/32/48/64/256）
+SetupIconFile=assets\tray.ico
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "installer_lang\ChineseSimplified.isl"

@@ -11,7 +11,12 @@
     .venv/Scripts/python.exe -m unittest tests.test_time_broadcast -v
 """
 
+
 from __future__ import annotations
+
+import os as _os, tempfile as _tempfile  # 强制隔离：必须早于任何 core 模块 import
+if "dpt_test_" not in _os.environ.get("APPDATA", ""):
+    _os.environ["APPDATA"] = _tempfile.mkdtemp(prefix="dpt_test_")
 
 import os
 import tempfile
@@ -78,13 +83,65 @@ class TimeBroadcastTest(unittest.TestCase):
         self.floating = None
         self.main = None
 
-    def test_floating_has_no_qttimer_field(self):
-        """不变量 A：FloatingWindow 没有 QTimer 实例字段，也非其子类实例。"""
-        self.assertFalse(hasattr(self.floating, "_timer"))
-        for name, value in vars(self.floating).items():
-            self.assertNotIsInstance(
-                value, QTimer, f"悬浮窗不应持有 QTimer 字段：{name}"
-            )
+    def test_floating_has_no_second_refresh_timer(self):
+        """不变量 A：悬浮窗对象树里不允许出现「每秒刷新」定时器。
+
+        只允许一个 ≤100ms 的动画节拍（呼吸/点击/歪头）。理由：每秒的时间刷新
+        必须只有主窗口心跳这一个来源，两个 1000ms 定时器相位不同会互相打架
+        （表现为悬浮窗比表格慢一拍）。
+
+        用 `findChildren` **递归穿透对象树**，而不是只看 `vars(self.floating)`：
+        动画定时器封装在 _PetAnimator 里，只查窗口自身的字段会漏掉它 ——
+        那样这条测试就形同虚设（曾经的版本正是这么写的）。
+        """
+        intervals = [timer.interval() for timer in self.floating.findChildren(QTimer)]
+
+        slow = [i for i in intervals if 900 <= i <= 1100]
+        self.assertEqual(
+            slow, [], f"悬浮窗不应持有 1 秒刷新定时器，实际全部间隔：{intervals}"
+        )
+
+        fast = [i for i in intervals if i <= 100]
+        self.assertEqual(
+            len(fast), 1, f"应恰好有一个动画定时器（≤100ms），实际全部间隔：{intervals}"
+        )
+
+    def test_pet_area_is_top_aligned_and_fixed_size(self):
+        """宠物区贴顶、尺寸固定，不随卡片高度变化；x 跟着朝向走。
+
+        顶部对齐是刻意的：事件多到卡片比猫高时，垂直居中会让猫悬在窗口中间，
+        上下各留一大片空白，看起来像「飘着」。
+        """
+        box = self.floating._pet_box()
+        self.assertEqual(box.top(), 0)
+        self.assertEqual(box.width(), FloatingWindow.PET_AREA_WIDTH)
+        self.assertEqual(box.height(), FloatingWindow.PET_AREA_HEIGHT)
+
+        # x 由朝向决定：默认贴左（0），翻转后贴右（width - PET_AREA_WIDTH）
+        expected_x = (
+            self.floating.width() - FloatingWindow.PET_AREA_WIDTH
+            if self.floating.is_flipped()
+            else 0
+        )
+        self.assertEqual(box.left(), expected_x)
+
+        # 加事件让卡片长高，宠物区必须**顶部对齐且尺寸不变**。
+        # 注意不能断言 QRect 整体相等：翻转态下 x = width - PET_AREA_WIDTH，
+        # 而卡片变高时宽度也可能变（时间文本变长），x 随之变化是正确行为。
+        for _ in range(5):
+            self.main.events.append(_make_running_countdown())
+        self.floating.rebuild()
+        grown = self.floating._pet_box()
+        self.assertGreater(self.floating.height(), box.height(), "卡片没有长高，用例前提不成立")
+        self.assertEqual(grown.top(), 0, "宠物区必须始终贴顶")
+        self.assertEqual(grown.width(), FloatingWindow.PET_AREA_WIDTH)
+        self.assertEqual(grown.height(), FloatingWindow.PET_AREA_HEIGHT)
+        expected_x_after = (
+            self.floating.width() - FloatingWindow.PET_AREA_WIDTH
+            if self.floating.is_flipped()
+            else 0
+        )
+        self.assertEqual(grown.left(), expected_x_after, "宠物区的 x 必须仍按当前朝向贴边")
 
     def test_time_changed_emitted_and_updates_floating_when_hidden(self):
         """不变量 B/C：主窗口隐藏后，常驻定时器路径仍广播并刷新悬浮窗。"""
@@ -93,7 +150,7 @@ class TimeBroadcastTest(unittest.TestCase):
         self.assertFalse(self.main.isVisible())
 
         # 记录初始文本
-        initial = [label.text() for _, label, _ in self.floating._rows]
+        initial = [row[3].text() for row in self.floating._rows]
         self.assertTrue(initial)  # 有可见事件
 
         # 手动驱动常驻路径（等价于 _notify_timer 的 check_notifications 回调）
@@ -105,7 +162,7 @@ class TimeBroadcastTest(unittest.TestCase):
         # B：常驻广播在隐藏时确实发出
         self.assertTrue(spy, "隐藏主窗口后 time_changed 未发出")
         # C：悬浮窗文本随广播更新
-        now_text = [label.text() for _, label, _ in self.floating._rows]
+        now_text = [row[3].text() for row in self.floating._rows]
         self.assertNotEqual(initial, now_text, "隐藏主窗口后悬浮窗应每秒更新")
 
     def test_snooze_button_greyed_when_none_or_not_due(self):

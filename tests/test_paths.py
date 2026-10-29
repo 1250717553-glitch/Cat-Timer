@@ -7,7 +7,12 @@
     python -m unittest tests.test_paths -v
 """
 
+
 from __future__ import annotations
+
+import os as _os, tempfile as _tempfile  # 强制隔离：必须早于任何 core 模块 import
+if "dpt_test_" not in _os.environ.get("APPDATA", ""):
+    _os.environ["APPDATA"] = _tempfile.mkdtemp(prefix="dpt_test_")
 
 import sys
 import unittest

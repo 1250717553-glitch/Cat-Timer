@@ -30,7 +30,7 @@ from core.storage import load_events, save_events
 from platform_win import single_instance
 from ui.floating_window import FloatingWindow
 from ui.main_window import MainWindow
-from ui.tray import TrayIcon
+from ui.tray import TrayIcon, load_app_icon
 
 APP_NAME = "桌面宠物计时器"
 
@@ -62,6 +62,9 @@ def main() -> int:
     """创建应用、托盘与主窗口，进入事件循环。"""
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    # 全程序统一图标：设一次就成了所有窗口（主窗口 / 悬浮窗）和任务栏的默认图标，
+    # 不必在每个窗口里各设一遍 —— 漏设的那个窗口就会显示 Python 默认图标。
+    app.setWindowIcon(load_app_icon())
 
     # 【关键】关闭最后一个窗口时不退出程序。
     # 本程序是托盘常驻型：关掉主窗口只是收到托盘，进程要继续跑着做提醒。

@@ -109,8 +109,44 @@ def format_duration(seconds: float, fmt: DisplayFormat) -> str:
         return f"{days}天 {hours:02d}小时 {minutes:02d}分钟"
     if fmt == DisplayFormat.FULL:
         return f"{days}天 {hours:02d}小时 {minutes:02d}分钟 {secs:02d}秒"
+    if fmt == DisplayFormat.SMART:
+        return _format_smart(days, hours, minutes, secs)
 
     raise ValueError(f"未知的显示格式：{fmt!r}")
+
+
+def _format_smart(days: int, hours: int, minutes: int, secs: int) -> str:
+    """按「剩余多久」选有意义的精度，最多两个单位。
+
+    规则（单位由大到小，选第一个非零单位作为主单位，带一个次单位）：
+        >= 1 天    -> "3 天 5 小时"
+        >= 1 小时  -> "5 小时 20 分钟"
+        >= 1 分钟  -> "23 分钟"          （不显示秒：剩下 23 分钟时秒没意义）
+        <  1 分钟  -> "45 秒"
+        == 0       -> "0 秒"
+
+    为什么不是「永远显示到秒」：
+        那样卡片会比「天+小时+分钟」更宽（后者不显示秒），
+        而用户选 SMART 想要的是「只看有意义的单位」，结果反而更长 — 自相矛盾。
+
+    为什么不补零（05 分钟）：
+        补零只解决「视觉整齐」，**挡不住宽度跳变** —— 跳变发生在 9->10
+        一位变两位，那时 05 也要变成 10。单独一个 05 分钟没有小时做参照时，
+        前导零没有任何意义。
+
+    为什么中间位的 0 也要去掉：
+        「1 天 0 小时 5 分钟」里的 0 小时是纯噪音，用户扫一眼要的是「多久」。
+    """
+    if days > 0:
+        # 主单位是天，次单位是小时（小时为 0 时只显示天）
+        return f"{days} 天" if hours == 0 else f"{days} 天 {hours} 小时"
+    if hours > 0:
+        return f"{hours} 小时" if minutes == 0 else f"{hours} 小时 {minutes} 分钟"
+    if minutes > 0:
+        # 到分钟为止：剩余 23 分钟时显示「23 分钟 45 秒」会把卡片撑宽，
+        # 且秒位每跳一次都要重排 —— 这个精度在「还剩 23 分钟」的语境下没有价值。
+        return f"{minutes} 分钟"
+    return f"{secs} 秒"
 
 
 def format_event(event: Event, now: Optional[float] = None) -> str:

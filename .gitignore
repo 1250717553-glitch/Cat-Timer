@@ -19,3 +19,21 @@ Easy-Cat-Timer-master/
 
 # --- 运行时生成 ---
 *.log
+
+# --- 派生的美术预览图：可由 tools/prepare_pet_asset.py 重新生成，不入库 ---
+assets/pet/_preview_checker.png
+
+# --- 原始素材：体积大（约 14MB），运行时用不到，不入库 ---
+# 运行时只需要 assets/pet/body.png（处理后的猫图）和两个 .ico。
+# 源图留在本机，需要重新处理美术时用得到，但不该进版本库拖慢 clone。
+assets/source/
+assets/pet/source/
+
+# --- 临时截图/验证产物 ---
+.tmp_shots/
+_shots/
+
+# --- Windows 保留设备名：ISCC 误操作重定向产生，git 无法索引 ---
+# 删除命令在这个路径下会被系统拒绝（nul 是设备名不是普通文件），
+# 1650 字节，留着无害，但必须让 git 跳过，否则 add 直接失败。
+nul

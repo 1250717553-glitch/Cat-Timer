@@ -10,7 +10,56 @@ PyInstaller 会把 .py 编译进归档，`__file__` 指向的位置与资源实�
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
+from typing import Optional
+
+
+
+
+def backup_corrupt_file(path: Path) -> Optional[Path]:
+    """把损坏的文件改名备份，返回备份路径；失败返回 None。
+
+    为什么用 rename 而不是 copy：
+        copy 的话原文件还在，下次启动又读到同样的损坏内容，反复报错；
+        rename 之后原路径空出来，程序可以正常写入新文件，
+        损坏内容被隔离在 .corrupt-<时间戳> 里，用户随时能找回。
+
+    为什么文件名叫 .corrupt- 而不是 .bak：
+        后者看不出「为什么备份」，用户可能以为是正常备份而删掉；
+        corrupt 这个词本身就在提示「这个文件有问题，你该看一眼」。
+
+    为什么带时间戳：同一份配置可能在不同时间多次损坏，
+    覆盖掉旧的备份等于把更早期的数据也丢了。
+
+    为什么不能抛异常：
+        本函数专门在 except 分支里被调用。它再抛的话，
+        调用方（load_events / load_preferences / restore_position）会直接崩，
+        整个程序起不来 —— 比丢一份备份严重得多。
+
+    :param path: 损坏文件的路径
+    :return: 备份后的路径；文件不存在或改名失败时返回 None
+    """
+    try:
+        if not path.exists():
+            return None
+    except OSError:
+        return None
+
+    stamp = int(time.time())
+    backup = path.with_name(f"{path.stem}.corrupt-{stamp}{path.suffix}")
+    # 同一秒内连续损坏会撞名，加序号避免覆盖前一份
+    counter = 1
+    try:
+        while backup.exists():
+            backup = path.with_name(f"{path.stem}.corrupt-{stamp}-{counter}{path.suffix}")
+            counter += 1
+        path.rename(backup)
+        print(f"[storage] 配置损坏，已备份到 {backup.name}")
+        return backup
+    except OSError as exc:
+        print(f"[storage] 警告：损坏文件备份失败 -> {exc}")
+        return None
 
 
 def is_frozen() -> bool:

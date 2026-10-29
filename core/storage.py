@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from core.models import Event
+from core.paths import backup_corrupt_file
 
 # 配置目录名与文件名
 APP_DIR_NAME = "桌面宠物计时器"
@@ -37,6 +38,11 @@ def get_config_path() -> Path:
     return config_dir / CONFIG_FILENAME
 
 
+
+
+
+
+
 def load_events() -> list[Event]:
     """读取事件列表。
 
@@ -52,14 +58,21 @@ def load_events() -> list[Event]:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        # 【关键】必须在返回空列表之前把损坏文件隔离走。
+        # main.py 启动是 load -> mark_expired -> save：若这里只是「返回空」，
+        # 紧接着的 save 会把用户所有事件覆盖成空数组 —— 永久数据丢失。
         print(f"[storage] 警告：配置文件解析失败，已忽略。{path} -> {exc}")
+        backup_corrupt_file(path)
         return []
     except OSError as exc:
+        # 读不出来（权限/占用）不备份：文件可能完好，只是暂时打不开，
+        # rename 反而会把用户正常配置搬走。
         print(f"[storage] 警告：配置文件读取失败，已忽略。{path} -> {exc}")
         return []
 
     if not isinstance(data, dict):
         print(f"[storage] 警告：配置文件顶层结构异常，已忽略。{path}")
+        backup_corrupt_file(path)
         return []
 
     raw_events = data.get("events")

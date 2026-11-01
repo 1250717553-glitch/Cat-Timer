@@ -14,8 +14,10 @@ dist/
 BongoCat-master/
 Easy-Cat-Timer-master/
 
-# --- 本机 AI 工作记录 ---
+# --- 本机 AI 工作记录（会写你自己的思路和私有笔记，绝不能公开）---
+# 注意是两套目录：.workbuddy-ai/ 和 .workbuddy/，少一个就会漏。
 .workbuddy-ai/
+.workbuddy/
 
 # --- 运行时生成 ---
 *.log

@@ -13,7 +13,7 @@
 几乎不可见，可以接受；若素材日后换成官方透明底图，本脚本会自动跳过抠图。
 
 用法（必须用带 Pillow 的解释器）：
-    "C:/Users/12507/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" tools/prepare_pet_asset.py
+    "<带 Pillow 的 python.exe>" tools/prepare_pet_asset.py
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ try:
     from PIL import Image, ImageDraw
 except ImportError:
     print("[错误] 当前解释器没有 Pillow。请用：")
-    print('  "C:/Users/12507/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" tools/prepare_pet_asset.py')
+    print('  "<带 Pillow 的 python.exe>" tools/prepare_pet_asset.py')
     sys.exit(2)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

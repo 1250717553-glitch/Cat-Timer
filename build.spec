@@ -195,3 +195,19 @@ coll = COLLECT(
     upx=False,
     name=APP_NAME,           # -> dist/桌面宠物计时器/
 )
+
+# ---------------------------------------------------------------------------
+# 说明文件：放到 exe 同级（不在 _internal 里）
+# ---------------------------------------------------------------------------
+# 为什么不能塞进 datas：
+#     datas 里的东西会被放进 _internal/，用户打开文件夹看到的第一层只有 exe ，
+#     说明书藏在 _internal 子目录里等于没有 —— 拿到程序的人不会去翻它。
+# 所以在 COLLECT 之后直接复制到 dist/<APP_NAME>/ 下。
+_doc_src = PROJECT_ROOT / "使用说明.txt"
+_doc_dst = Path(DISTPATH) / APP_NAME / "使用说明.txt"
+if _doc_src.is_file():
+    import shutil
+    shutil.copy2(_doc_src, _doc_dst)
+    print(f"[build.spec] 已复制说明文件 -> {_doc_dst}")
+else:
+    print(f"[build.spec] 警告：缺少 {_doc_src}，包里不会有说明书")

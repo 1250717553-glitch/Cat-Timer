@@ -14,7 +14,7 @@
 依赖 Pillow，但**项目 .venv 里没有装**（程序运行时只读 .ico，不需要 Pillow）。
 用一个带 Pillow 的解释器执行：
 
-    "C:/Users/12507/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" \
+    "<带 Pillow 的 python.exe>" \
         tools/make_tray_icon.py
 
 脚本幂等：重复执行只会覆盖 assets/tray.ico。
@@ -89,14 +89,14 @@ _MISSING_PILLOW_HINT = """\
 [错误] 当前 Python 解释器没有安装 Pillow，无法生成图标。
 
 请用带 Pillow 的解释器执行本脚本，例如：
-    "C:/Users/12507/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" tools/make_tray_icon.py
+    "<带 Pillow 的 python.exe>" tools/make_tray_icon.py
 
 或者给任意解释器装上 Pillow（注意：不要装进项目 .venv，
 程序运行时并不需要 Pillow）：
     <某个python.exe> -m pip install pillow
 
 如果你确认上面这个解释器就是目标环境，也可以直接：
-    "C:/Users/12507/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" -m pip install pillow
+    "<带 Pillow 的 python.exe>" -m pip install pillow
 """
 
 

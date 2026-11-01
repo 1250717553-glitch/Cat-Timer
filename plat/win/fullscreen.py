@@ -1,6 +1,6 @@
 """全屏 / 沉浸状态检测，以及三档可见性的判定策略。
 
-纯 ctypes 实现，不 import 任何 GUI 库 —— 保证 platform_win 层可脱离 Qt 单元测试。
+纯 ctypes 实现，不 import 任何 GUI 库 —— 保证 plat 层可脱离 Qt 单元测试。
 
 用 Windows 的 SHQueryUserNotificationState 查询系统当前的"用户通知状态"。
 Windows 7+ 系统会在全屏（Direct3D 独占、演示模式、屏保等）时把该状态切走，
@@ -41,7 +41,7 @@ _HIDE_STATES = frozenset(
 )
 
 # 三档可见性（与 core.preferences 的取值一致，见 VISIBILITY_MODES）。
-# 这里不 import core.preferences 是为了让 platform_win 保持「零项目内依赖」，
+# 这里不 import core.preferences 是为了让 plat 层保持「零项目内依赖」，
 # 值本身很短、且有测试逐条对照，漂移会立刻被发现。
 VISIBILITY_DESKTOP = "desktop"
 VISIBILITY_WINDOW = "window"

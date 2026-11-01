@@ -20,7 +20,7 @@ from core.paths import backup_corrupt_file
 APP_DIR_NAME = "桌面宠物计时器"
 PREFERENCES_FILENAME = "preferences.json"
 
-# 可见性三档（取值同时被 platform_win.fullscreen 使用，两边必须一致）
+# 可见性三档（取值同时被 plat 层的 fullscreen 使用，两边必须一致）
 VISIBILITY_DESKTOP = "desktop"  # 仅桌面可见：别的窗口盖住桌面就收起
 VISIBILITY_WINDOW = "window"    # 窗口可见（默认）：只在全屏 / 免打扰时收起
 VISIBILITY_ALWAYS = "always"    # 始终可见：永不自动收起

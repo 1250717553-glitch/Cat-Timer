@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.models import Event, EventMode
-from platform_win import sound
+from plat import sound
 from core.notifier import (
     advance_repeating,
     at_repeat_limit,
@@ -60,8 +60,8 @@ from core.preferences import (
 )
 from core.storage import get_config_path, load_events, save_events
 from core.timer import is_expired
-from platform_win import fullscreen
-from platform_win import single_instance
+from plat import fullscreen
+from plat import single_instance
 from ui import theme
 from ui.event_dialog import EventDialog
 from ui.text_format import event_time_text_with_prefix

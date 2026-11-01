@@ -26,7 +26,7 @@ if not os.environ.get("QT_QPA_PLATFORM"):
 from PySide6.QtCore import QSharedMemory
 from PySide6.QtWidgets import QApplication
 
-from platform_win import single_instance
+from plat import single_instance
 
 
 class _App(unittest.TestCase):

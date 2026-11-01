@@ -21,7 +21,7 @@ from unittest import mock
 if not os.environ.get("QT_QPA_PLATFORM"):
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from platform_win import sound
+from plat import sound
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -155,7 +155,7 @@ class SoundIntegrationTest(_App):
         import time as _t
 
         from core.models import DisplayFormat, Event, EventMode
-        import platform_win.fullscreen as fs
+        from plat import fullscreen as fs
 
         win = self._make_window()
         win._sound_enabled = True

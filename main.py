@@ -27,7 +27,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.notifier import mark_expired_as_fired
 from core.storage import load_events, save_events
-from platform_win import single_instance
+from plat import single_instance
 from ui.floating_window import FloatingWindow
 from ui.main_window import MainWindow
 from ui.tray import TrayIcon, load_app_icon

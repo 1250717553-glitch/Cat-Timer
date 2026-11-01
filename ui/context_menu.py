@@ -16,7 +16,7 @@ from core.preferences import (
     VISIBILITY_DESKTOP,
     VISIBILITY_WINDOW,
 )
-from platform_win import autostart
+from plat import autostart
 
 if TYPE_CHECKING:  # 仅用于类型标注，避免运行时循环 import
     from ui.floating_window import FloatingWindow

@@ -32,7 +32,7 @@ if not os.environ.get("QT_QPA_PLATFORM"):
 
 from PySide6.QtWidgets import QApplication
 
-import platform_win.fullscreen as fullscreen
+from plat import fullscreen
 from core.models import DisplayFormat, Event, EventMode
 from core.preferences import (
     get_preferences_path,

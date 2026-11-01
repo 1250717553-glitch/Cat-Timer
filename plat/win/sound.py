@@ -1,6 +1,6 @@
 """到点提示音。
 
-放在 platform_win 而不是 core：winsound 是 Windows 专有模块，
+放在 plat/win 而不是 core：winsound 是 Windows 专有模块，
 core 层必须保持「可脱离 GUI/平台依赖单独测试」的性质。
 
 优先播 assets/sounds/meow.wav，缺失时回落系统提示音。

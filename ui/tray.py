@@ -7,14 +7,15 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QStyle, QSystemTrayIcon, QWidget
 
-from core.paths import first_existing
+from core.paths import first_existing, resource_path
 from core.preferences import VISIBILITY_MODES
-from platform_win import autostart
+from plat import autostart
 from ui.context_menu import (
     AUTOSTART_ACTION_NAME,
     FLOATING_ACTION_NAME,
@@ -31,14 +32,27 @@ APP_NAME = "桌面宠物计时器"
 # 自定义图标候选路径（相对资源基准目录）。有就用，没有就退回系统标准图标。
 # 注意：必须走 core.paths，打包后资源在 sys._MEIPASS 下，
 # 用 __file__ 推路径在打包后会失效。
-# 正式图标 app.ico 排在最前：它由 tools/make_app_icon.py 从 "App .png" 生成，
-# 与宠物形象同源（奶油色圆角底座 + 橘猫大头）。后面的旧文件只是兜底，
-# 保证素材被误删时托盘仍有个图标可显示。
-_ICON_CANDIDATES = (
+#
+# 【为什么分平台】
+#     Qt 在 macOS 上**不支持 .ico**（QIcon 加载后 isNull() 为 True），
+#     而 .ico 正是 Windows 最常用的图标容器格式。
+#     如果不分平台，Mac 用户的托盘只会显示系统自带的「显示器」图标，
+#     而我们的橘猫头根本出不来。
+#     PNG 两边都支持，所以 macOS 优先取 PNG。
+_ICON_CANDIDATES_WIN = (
     "assets/app.ico",
     "assets/app.png",
     "assets/tray.ico",
     "assets/tray.png",
+)
+
+_ICON_CANDIDATES_MAC = (
+    # 22px 是 macOS 菜单栏图标的标准尺寸，@2x 供 Retina 屏使用。
+    # Qt 会自动按 devicePixelRatio 挑对应的倍图。
+    "assets/tray.png",
+    "assets/tray@2x.png",
+    "assets/app.png",
+    "assets/app.ico",   # 兜底：万一 PNG 都没了，Qt 在 Mac 上会忽略它
 )
 
 
@@ -48,8 +62,14 @@ def load_app_icon() -> QIcon:
     优先使用 assets/ 里的图标文件；找不到时退回系统标准图标 ——
     QSystemTrayIcon **必须有图标，否则根本不会显示**。
     """
-    candidate = first_existing(_ICON_CANDIDATES)
-    if candidate is not None:
+    candidates = (
+        _ICON_CANDIDATES_MAC if sys.platform == "darwin" else _ICON_CANDIDATES_WIN
+    )
+    # 依次尝试：某个文件存在但 Qt 加载失败（格式不支持/文件损坏）时继续试下一个
+    for relative in candidates:
+        candidate = resource_path(relative)
+        if not candidate.is_file():
+            continue
         icon = QIcon(str(candidate))
         if not icon.isNull():
             return icon
